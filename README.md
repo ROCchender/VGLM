@@ -139,7 +139,7 @@ python sat_VGLM.py \
 
 #### 使用 HuggingFace 框架推理
 
-我这里已经下好了除模型参数文件外的其他文件，项目默认使用本地 `./visualglm` 目录加载模型。如果该目录不存在，将自动从 HuggingFace 下载 `THUDM/visualglm-6b` 模型。
+我这里已经下好了除模型参数文件外的其他文件，项目默认使用本地 `./visualglm` 目录加载模型。如果该目录不存在，需要自己手动下载 `THUDM/visualglm-6b` 模型，我暂时没有把自动下载写进去。
 完整的模型实现可以在[Hugging Face Hub](https://huggingface.co/THUDM/visualglm-6b)上下载。如果你从 Hugging Face Hub 上下载模型参数的速度较慢，可以从[这里](https://cloud.tsinghua.edu.cn/d/43ffb021ca5f4897b56a/)手动下载模型参数文件，并从本地加载模型。
 
 ```bash
