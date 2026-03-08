@@ -80,6 +80,10 @@ VGLM/
 ├── prepare_coco_dataset.py    # COCO 数据集预处理
 ├── sat_VGLM.py                # SAT 框架推理脚本
 ├── hf_VGLM.py                 # HuggingFace 框架推理脚本
+├── test/                      # 评估相关脚本
+│   ├── prepare_eval_data.py   # 准备评估数据
+│   ├── generate_predictions.py # 生成模型预测
+│   └── evaluate_model.py      # 计算评估指标
 └── requirements.txt           # 依赖列表
 ```
 
@@ -120,11 +124,10 @@ bash finetune/finetune_visualglm_qlora.sh
 
 ### 3. 合并 LoRA 权重
 
-微调完成后，需要将 LoRA 权重合并到基础模型中：
-这里以我用MSCOCO2014的5000个样本训练出来的权重mode 5000为例，合并后的模型为5000VGLM_merged
+微调完成后，可以选择将 LoRA 权重合并到基础模型中：
 
 ```bash
-python merge_lora.py --mode 5000 --output ./models/5000VGLM_merged
+python merge_lora.py --mode single --output ./models/VGLM_merged
 ```
 
 ### 4. 模型推理
@@ -224,6 +227,126 @@ VGLM: 这张图片描绘了一个夜晚的星空，有星星和树木。
 ]
 ```
 
+## 模型评估
+
+本项目提供了完整的模型评估流程，使用 COCO 官方评测工具计算标准指标。
+
+### 评估指标说明
+
+| 指标 | 说明 |
+|------|------|
+| **BLEU-1~4** | 评估生成文本与真实标注在 n-gram 层面的精确匹配程度，BLEU-4 常用于衡量文本连贯性 |
+| **CIDEr** | 专为图像描述设计的共识指标，通过 TF-IDF 赋予重要词汇更高权重，是目前最受认可的核心评价标准 |
+
+### 评估流程
+
+**步骤 1：准备评估数据**
+
+使用 `prepare_eval_data.py` 从 COCO 官方标注文件中提取评估数据，生成 Ground Truth 和图片列表。
+
+```bash
+python test/prepare_eval_data.py \
+    --coco-annotation /path/to/captions_val2014.json \
+    --image-root /path/to/val2014 \
+    --output-gt ./eval_ground_truth.json
+```
+
+参数说明：
+- `--coco-annotation`：COCO 官方标注文件（如 `captions_val2014.json`），包含图片 ID 和对应的人工标注描述
+- `--image-root`：COCO 验证集图片目录（如 `val2014/`）
+- `--output-gt`：输出的 Ground Truth 文件路径
+
+输出文件：
+- `eval_ground_truth.json`：Ground Truth 标注文件
+- `eval_ground_truth_images.json`：图片路径列表（供步骤 2 使用）
+
+**步骤 2：生成模型预测**
+
+使用 `generate_predictions.py` 让模型对图片生成描述。
+
+```bash
+python test/generate_predictions.py \
+    --model-path ./models/VGLM_merged \
+    --img-list ./eval_ground_truth_images.json \
+    --output ./eval_predictions.json
+```
+
+参数说明：
+- `--model-path`：训练好的模型路径（合并后的模型或 checkpoint）
+- `--img-list`：步骤 1 生成的图片列表文件
+- `--output`：输出的预测结果文件
+
+输出文件：
+- `eval_predictions.json`：模型预测的描述结果
+
+**步骤 3：计算评估指标**
+
+使用 `evaluate_model.py` 计算 BLEU 和 CIDEr 指标。
+
+```bash
+python test/evaluate_model.py \
+    --pred ./eval_predictions.json \
+    --gt /path/to/captions_val2014.json \
+    --mapping ./eval_ground_truth_images.json
+```
+
+参数说明：
+- `--pred`：步骤 2 生成的预测结果文件
+- `--gt`：COCO 官方标注文件（用于计算指标）
+- `--mapping`：步骤 1 生成的图片列表文件（用于映射预测结果与官方标注的图片 ID）
+
+### 评估结果示例
+
+```
+============================================================
+🎯 最终评估结果:
+============================================================
+     Bleu_1 : 0.6234
+     Bleu_2 : 0.4521
+     Bleu_3 : 0.3187
+     Bleu_4 : 0.2156
+      CIDEr : 0.7842
+============================================================
+```
+
+> 📖 参考：[CIDEr: Consensus-based Image Description Evaluation](https://arxiv.org/abs/1411.5726)
+
+## 配套项目
+
+### LICM - 轻量化图像描述模型本地部署系统
+
+[LICM](https://github.com/ROCchender/LICM) 是一个基于 VGLM 的轻量化图像描述模型本地部署系统，提供 Web 界面用于图像识别与分析。
+
+![LICM 首页](示例/首页.png)
+
+**功能特性**：
+
+- **图像识别**：支持 JPG、PNG、WebP、BMP 等多种图片格式
+- **多种识别模式**：
+  - 通用描述：生成图片的一般性描述
+  - 背景分析：专注于图片背景环境分析
+  - 详细描述：详细描述图片的所有内容
+  - 英文描述：使用英文描述图片
+- **Web 界面**：简洁美观的 Web UI，支持拖拽上传
+- **量化加速**：支持 4-bit 量化，降低显存占用
+- **本地部署**：数据隐私安全，无需联网即可使用
+
+**快速启动**：
+
+```bash
+# 克隆项目
+git clone https://github.com/ROCchender/LICM.git
+cd LICM
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 启动服务
+python app.py
+```
+
+服务启动后，访问 http://localhost:5000 即可使用。
+
 ## 许可证
 
 本项目遵循 VisualGLM-6B 的开源许可证。详见 [visualglm/LICENSE](visualglm/LICENSE) 和 [visualglm/MODEL_LICENSE](visualglm/MODEL_LICENSE)。
@@ -232,8 +355,10 @@ VGLM: 这张图片描绘了一个夜晚的星空，有星星和树木。
 
 - [VisualGLM-6B](https://github.com/THUDM/VisualGLM-6B) - 基础模型
 - [ChatGLM-6B](https://github.com/THUDM/ChatGLM-6B) - 语言模型基座
+- [SwissArmyTransformer](https://github.com/THUDM/SwissArmyTransformer) - 训练框架
 
 ## 相关链接
 
 - [VisualGLM-6B GitHub](https://github.com/THUDM/VisualGLM-6B)
 - [ChatGLM-6B GitHub](https://github.com/THUDM/ChatGLM-6B)
+
