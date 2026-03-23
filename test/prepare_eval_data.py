@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+"""
+准备评估数据 (Ground Truth)
+支持 COCO 官方格式 (captions_val.json)
+"""
 import json
 import argparse
 import os
+
 
 def prepare_eval_data(coco_annotation_file: str, image_root: str, output_gt: str, 
                       num_samples: int = None):

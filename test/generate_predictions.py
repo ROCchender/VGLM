@@ -12,7 +12,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def generate_predictions(model_path: str, img_list_file: str, output_file: str, 
                          max_length: int = 256, temperature: float = 0.8):
+    """
+        model_path: 模型路径 (合并后的模型或 checkpoint 路径)
+        img_list_file: 图片列表文件 (由 prepare_eval_data.py 生成)
+        output_file: 输出预测文件
+        max_length: 生成文本最大长度
+        temperature: 采样温度
 
+        python val/generate_predictions.py \
+        --model-path "root/.sat_models/visualglm-6b" \
+        --img-list "val/eval_val_truth_images.json" \
+        --output "val/eval_predictions.json" \
+    """
     print("="*60)
     print("生成预测结果")
     print("="*60)

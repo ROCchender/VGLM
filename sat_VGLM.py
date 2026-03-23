@@ -15,20 +15,18 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 gc.collect()
 
-# 默认模型路径（请修改为你自己的模型路径）
-DEFAULT_MODEL_PATH = "./models/5000VGLM_merged"
+# 默认模型路径
+DEFAULT_MODEL_PATH = "/gemini/pretrain"
 
 
 def print_header():
-    """打印标题"""
     print("=" * 60)
     print("VGLM - 图像描述模型 (SAT框架)")
     print("=" * 60)
 
 
 def load_model(model_path, use_quant=False, quant_bits=4):
-    """加载模型 (SAT方式)
-    
+    """
     Args:
         model_path: 模型路径
         use_quant: 是否使用量化
@@ -82,7 +80,6 @@ def load_model(model_path, use_quant=False, quant_bits=4):
 
 
 def download_image(url):
-    """下载在线图片到临时文件"""
     try:
         print(f"  正在下载图片: {url}")
         response = requests.get(url, timeout=30)
@@ -112,7 +109,6 @@ def download_image(url):
 
 
 def is_image_input(text):
-    """检测输入是否为图片路径或图片URL"""
     text = text.strip()
     if text.startswith(('http://', 'https://')):
         return True
@@ -124,7 +120,6 @@ def is_image_input(text):
 
 
 def safe_input(prompt_text):
-    """安全的输入函数，处理编码问题"""
     try:
         import sys
         sys.stdout.buffer.write(prompt_text.encode('utf-8'))
@@ -141,10 +136,42 @@ def safe_input(prompt_text):
         print(f"输入错误: {e}")
         return ""
 
+#简单检测字符串是否主要为英文
+def is_english_query(text):
+    
+    if not text:
+        return False
+
+    en_chars = sum(1 for c in text if c.isascii() and c.isalpha())
+
+    zh_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+
+    text_lower = text.lower()
+
+    if "in chinese" in text_lower or "用中文" in text:
+        return False
+    if "in english" in text_lower or "用英文" in text:
+        return True
+
+    if "english" in text_lower:
+        return True
+    if "chinese" in text_lower:
+        return False
+    if "describe" in text_lower:
+        return True
+    if "描述" in text:
+        return False
+
+    return en_chars > zh_chars * 2
 
 def chat_with_model(model, tokenizer, image_path, query, history, args):
-    """与模型对话"""
+
     from model import chat
+
+    detected_eng = is_english_query(query)
+
+    has_explicit_lang = any(kw in query.lower() for kw in ['in chinese', 'in english', '用中文', '用英文', 'chinese', 'english'])
+    is_eng = detected_eng if has_explicit_lang else (args.english or detected_eng)
     
     response, history, cache_image = chat(
         image_path, 
@@ -157,8 +184,8 @@ def chat_with_model(model, tokenizer, image_path, query, history, args):
         top_p=args.top_p, 
         temperature=args.temperature,
         top_k=args.top_k,
-        english=args.english,
-        invalid_slices=[slice(63823, 130000)] if args.english else []
+        english=is_eng,
+        invalid_slices=[slice(63823, 130000)] if is_eng else []
     )
 
     if isinstance(response, bytes):
@@ -166,7 +193,7 @@ def chat_with_model(model, tokenizer, image_path, query, history, args):
     elif isinstance(response, str):
         response = response.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
     
-    return response, history, cache_image
+    return response, history, cache_image, is_eng
 
 
 def main():
@@ -182,13 +209,13 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.8, 
                         help='温度 (默认: 0.8)')
     parser.add_argument("--english", action='store_true', 
-                        help='英文输出模式')
+                        help='强制全局英文输出模式')
     parser.add_argument("--quant", choices=[8, 4], type=int, default=None, 
                         help='量化位数 (4 或 8，用于节省显存)')
     parser.add_argument("--prompt_zh", type=str, default="描述这张图片。", 
-                        help='中文提示词')
-    parser.add_argument("--prompt_en", type=str, default="Describe the image.", 
-                        help='英文提示词')
+                        help='默认中文提示词')
+    parser.add_argument("--prompt_en", type=str, default="Describe this image.", 
+                        help='默认英文提示词')
     
     args = parser.parse_args()
     
@@ -197,16 +224,12 @@ def main():
     model, tokenizer = load_model(args.model_path, use_quant=args.quant is not None, quant_bits=args.quant)
 
     print("\n" + "=" * 60)
-    if args.english:
-        print("Ready!")
-        print("Commands: clear = restart, stop = exit")
-    else:
-        print("准备就绪！")
-        print("提示词建议：")
-        print("  1. '详细描述这张图片的背景和环境' - 侧重背景")
-        print("  2. '描述这张图片' - 通用描述")
-        print("  3. 'Describe this image' - 英文描述")
-        print("命令：clear 清空对话历史，stop 终止程序")
+    print("双语自适应模型准备就绪！")
+    print("支持混合输入：输入中文回答中文，输入英文（如 Describe this image）回答英文。")
+    print("提示词建议：")
+    print("  1. '描述这张图片。' - 中文描述")
+    print("  2. 'Describe this image.' - 英文描述")
+    print("命令：clear 清空对话历史，stop 终止程序")
     print("=" * 60)
 
     stop_stream = False
@@ -216,10 +239,7 @@ def main():
         cache_image = None
         temp_image_path = None
 
-        if args.english:
-            image_input = safe_input("\nEnter image path or URL (press Enter for text only): ")
-        else:
-            image_input = safe_input("\n请输入图片路径或URL（回车进入纯文本对话）：")
+        image_input = safe_input("\n[上传图片] 请输入图片路径或URL（直接回车跳过）：")
         
         if image_input.lower() == 'stop':
             break
@@ -235,14 +255,14 @@ def main():
             image_path = None
 
         if image_path:
-            query = args.prompt_en if args.english else args.prompt_zh
+            query = safe_input("\nUser: ")
         else:
-            if args.english:
-                query = safe_input("User: ")
-            else:
-                query = safe_input("用户：")
+            query = safe_input("\nUser: ")
 
         while True:
+            if not query.strip():
+                query = args.prompt_zh  
+
             if query.lower() == 'clear':
                 if temp_image_path and os.path.exists(temp_image_path):
                     try:
@@ -255,12 +275,16 @@ def main():
                 sys.exit(0)
             
             try:
-                response, history, cache_image = chat_with_model(
+                response, history, cache_image, is_eng = chat_with_model(
                     model, tokenizer, image_path, query, history, args
                 )
                 
-                sep = 'A:' if args.english else '答：'
-                print(f"VGLM：{response.split(sep)[-1].strip()}")
+                sep = 'A:' if is_eng else '答：'
+                final_res = response.split(sep)[-1].strip()
+                if not final_res or final_res == response:
+                    final_res = response.split('答：')[-1].strip()
+                
+                print(f"VGLM：{final_res}")
                 
             except Exception as e:
                 print(f"Error: {e}")
@@ -268,10 +292,7 @@ def main():
 
             image_path = None
 
-            if args.english:
-                query = safe_input("User: ")
-            else:
-                query = safe_input("用户：")
+            query = safe_input("\nUser: ")
 
             if is_image_input(query):
                 print("\n检测到新图片，正在切换...\n")
@@ -292,7 +313,7 @@ def main():
 
                 history = None
                 cache_image = None
-                query = args.prompt_en if args.english else args.prompt_zh
+                query = safe_input("请输入对新图片的提问：")
 
 
 if __name__ == "__main__":

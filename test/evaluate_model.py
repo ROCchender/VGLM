@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+"""
+模型评估脚本 - 使用官方 pycocoevalcap 计算 BLEU,CIDEr,SPICE 指标
+python -u val/evaluate_model.py --pred val/eval_predictions.json --gt caption_data/captions_val2014.json --mapping val/eval_val_truth_images.json
+用法:
+    python val/evaluate_model.py \
+        --pred val/eval_predictions.json \
+        --gt caption_data/captions_val2014.json \
+        --mapping val/eval_ground_truth_images.json
+"""
+
 import json
 import argparse
 import re
@@ -98,10 +108,23 @@ def main():
 
         from pycocoevalcap.bleu.bleu import Bleu
         from pycocoevalcap.cider.cider import Cider
+        from pycocoevalcap.spice.spice import Spice
+        import pycocoevalcap.spice.spice as spice_module
+        
+        if os.name == 'nt':
+            original_check_call = spice_module.subprocess.check_call
+            def patched_check_call(cmd, **kwargs):
+                if 'spice-1.0.jar' in str(cmd) and '-cache' in cmd:
+                    idx = cmd.index('-cache')
+                    cmd.pop(idx)
+                    cmd.pop(idx)
+                return original_check_call(cmd, **kwargs)
+            spice_module.subprocess.check_call = patched_check_call
 
         scorers = [
             (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
             (Cider(), "CIDEr"),
+            (Spice(), "SPICE"),
         ]
 
         imgIds = coco_eval.params['image_id']
@@ -146,7 +169,7 @@ def main():
         print("🎯 最终评估结果 (毕业设计核心指标):")
         print("=" * 60)
 
-        for metric in ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4", "CIDEr"]:
+        for metric in ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4", "CIDEr", "SPICE"]:
             if metric in results:
                 print(f"  {metric:>10s} : {results[metric]:.4f}")
         print("=" * 60)
@@ -154,6 +177,7 @@ def main():
         print("\n指标说明 (用于撰写论文论述):")
         print("  Bleu_4: 评估生成的文本与真实标注在 4-gram 层面的精确匹配程度，常用于衡量文本的连贯性。")
         print("  CIDEr : 专为图像描述设计的共识指标，通过 TF-IDF 赋予重要词汇更高权重，是目前最受认可的核心评价标准。")
+        print("  SPICE : 基于场景图(Scene Graph)匹配的指标，通过提取对象、属性和关系，更接近人类的语义理解评价。")
 
     except Exception as e:
         print(f"\n❌ 评估过程中出现错误: {e}")

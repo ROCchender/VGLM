@@ -47,7 +47,8 @@ gpt_options=" \
        --gradient-accumulation-steps 1 \
        --skip-init \
        --fp16 \
-       --use_lora
+       --use_lora \
+       --log-interval 10
 "
              
 # 使用 DeepSpeed 运行

@@ -146,10 +146,48 @@ python sat_VGLM.py \
 完整的模型实现可以在[Hugging Face Hub](https://huggingface.co/THUDM/visualglm-6b)上下载。如果你从 Hugging Face Hub 上下载模型参数的速度较慢，可以从[这里](https://cloud.tsinghua.edu.cn/d/43ffb021ca5f4897b56a/)手动下载模型参数文件，并从本地加载模型。
 
 ```bash
+# 默认使用 4-bit 量化（推荐，显存占用约 6GB）
 python hf_VGLM.py
+
+# 使用 8-bit 量化
+python hf_VGLM.py --quant 8
+
+# 不使用量化（显存占用约 14GB）
+python hf_VGLM.py --no-quant
 ```
 
-支持交互式对话，输入图片路径或 URL 即可进行图像问答。
+#### 推理功能特性
+
+| 功能 | 说明 |
+|------|------|
+| **中英文自适应** | 根据用户输入语言自动切换回复语言，输入中文回复中文，输入英文回复英文 |
+| **图片URL下载** | 支持直接输入图片 URL（http/https），自动下载并识别 |
+| **多格式支持** | 支持 JPG、PNG、WebP、BMP、GIF、TIFF 等多种图片格式 |
+| **对话式交互** | 支持多轮对话，可对同一图片进行追问 |
+| **快捷命令** | `clear` 清空对话历史，`stop` 终止程序 |
+
+**中英文切换示例**：
+
+```
+用户: 描述这张图片。
+VGLM: 这是一张包含...的图片。
+
+用户: Describe this image in English.
+VGLM: This is an image containing...
+
+用户: 用中文再说一遍
+VGLM: 这是一张包含...的图片。
+```
+
+**图片输入方式**：
+
+```bash
+# 本地图片路径
+请输入图片路径或URL：/path/to/image.jpg
+
+# 网络图片 URL
+请输入图片路径或URL：https://example.com/image.jpg
+```
 
 ## 使用示例
 
@@ -237,6 +275,7 @@ VGLM: 这张图片描绘了一个夜晚的星空，有星星和树木。
 |------|------|
 | **BLEU-1~4** | 评估生成文本与真实标注在 n-gram 层面的精确匹配程度，BLEU-4 常用于衡量文本连贯性 |
 | **CIDEr** | 专为图像描述设计的共识指标，通过 TF-IDF 赋予重要词汇更高权重，是目前最受认可的核心评价标准 |
+| **SPICE** | 基于场景图(Scene Graph)匹配的指标，通过提取对象、属性和关系，更接近人类的语义理解评价 |
 
 ### 评估流程
 
@@ -306,10 +345,11 @@ python test/evaluate_model.py \
      Bleu_3 : 0.3187
      Bleu_4 : 0.2156
       CIDEr : 0.7842
+      SPICE : 0.2856
 ============================================================
 ```
 
-> 📖 参考：[CIDEr: Consensus-based Image Description Evaluation](https://arxiv.org/abs/1411.5726)
+> 📖 参考：[CIDEr: Consensus-based Image Description Evaluation](https://arxiv.org/abs/1411.5726) | [SPICE: Semantic Propositional Image Caption Evaluation](https://arxiv.org/abs/1607.08822)
 
 ## 配套项目
 
