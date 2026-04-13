@@ -65,10 +65,9 @@ def load_model(model_path, use_quant=False, quant_bits=4):
     
     # 量化：
     if use_quant and quant_bits in [4, 8]:
+        model.transformer = quantize(model.transformer, quant_bits)
         if torch.cuda.is_available():
-            model.transformer = quantize(model.transformer, quant_bits).cuda()
-        else:
-            model.transformer = quantize(model.transformer, quant_bits)
+            model = model.cuda()
     
     # 添加自动回归 mixin
     model.add_mixin('auto-regressive', CachedAutoregressiveMixin())
@@ -174,13 +173,18 @@ def chat_with_model(model, tokenizer, image_path, query, history, args):
 
     has_explicit_lang = any(kw in query.lower() for kw in ['in chinese', 'in english', '用中文', '用英文', 'chinese', 'english'])
     is_eng = detected_eng if has_explicit_lang else (args.english or detected_eng)
-    
+
+    internal_query = query
+    internal_history = history
+    if not is_eng and (history is None or len(history) == 0):
+        internal_query = "用中文回答。" + query
+        internal_history = []
     response, history, cache_image = chat(
         image_path, 
         model, 
         tokenizer,
-        query, 
-        history=history, 
+        internal_query, 
+        history=internal_history, 
         image=None,
         max_length=args.max_length, 
         top_p=args.top_p, 
