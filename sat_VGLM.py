@@ -20,6 +20,7 @@ DEFAULT_MODEL_PATH = "/gemini/pretrain"
 
 
 def print_header():
+    """打印标题"""
     print("=" * 60)
     print("VGLM - 图像描述模型 (SAT框架)")
     print("=" * 60)
@@ -62,11 +63,12 @@ def load_model(model_path, use_quant=False, quant_bits=4):
     )
     model = model.eval()
     
-    # 量化
+    # 量化：
     if use_quant and quant_bits in [4, 8]:
-        quantize(model, quant_bits)
         if torch.cuda.is_available():
-            model = model.cuda()
+            model.transformer = quantize(model.transformer, quant_bits).cuda()
+        else:
+            model.transformer = quantize(model.transformer, quant_bits)
     
     # 添加自动回归 mixin
     model.add_mixin('auto-regressive', CachedAutoregressiveMixin())
