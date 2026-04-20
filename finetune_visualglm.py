@@ -67,6 +67,8 @@ def get_batch(data_iterator, args, timers):
     img = data_i['image']
     if args.fp16:
         img = img.half()
+    elif getattr(args, 'bf16', False):
+        img = img.to(torch.bfloat16)
     
     return tokens, labels, img, data['pre_image']
 
@@ -82,7 +84,7 @@ def forward_step(data_iterator, model, args, timers):
     timers('batch generator').stop()
 
     logits = model(input_ids=tokens, image=image, pre_image=pre_image)[0]
-    dtype = logits.dtype
+    # 始终使用 float32 计算 loss，避免 bf16/fp16 数值不稳定
     lm_logits = logits.to(torch.float32)
 
     shift_logits = lm_logits[..., :-1, :].contiguous()
@@ -91,8 +93,6 @@ def forward_step(data_iterator, model, args, timers):
     loss_fct = CrossEntropyLoss(ignore_index=-100)
     loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
-    lm_logits = lm_logits.to(dtype)
-    loss = loss.to(dtype)
     return loss, {'loss': loss}
 
 
