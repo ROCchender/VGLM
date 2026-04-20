@@ -74,10 +74,12 @@ VGLM/
 │   └── tokenization_chatglm.py # 分词器
 ├── finetune/                   # 训练脚本
 │   ├── finetune_visualglm.sh      # LoRA 训练脚本
-│   └── finetune_visualglm_qlora.sh # QLoRA 训练脚本
+│   ├── finetune_visualglm_qlora.sh # QLoRA 训练脚本
+│   └── fix_deepspeed_bf16.py # DeepSpeed bf16 bug修复工具
 ├── finetune_visualglm.py      # 训练主程序
 ├── merge_lora.py              # LoRA 权重合并工具
 ├── prepare_coco_dataset.py    # COCO 数据集预处理
+├── prepare_flickr30k_dataset.py    # flickr 数据集预处理
 ├── sat_VGLM.py                # SAT 框架推理脚本
 ├── hf_VGLM.py                 # HuggingFace 框架推理脚本
 ├── test/                      # 评估相关脚本
